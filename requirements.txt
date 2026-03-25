@@ -5,8 +5,7 @@ scipy==1.13.1
 
 # Machine learning
 scikit-learn==1.6.1
-hmmlearn>=0.3.0        # HMM market regimes (optional: falls back gracefully)
-arch>=5.0.0            # GARCH volatility  (optional: falls back to manual MLE)
+# hmmlearn and arch excluded: no Python 3.14 wheels; app has graceful fallbacks
 
 # Visualization
 plotly==6.6.0
