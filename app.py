@@ -1910,9 +1910,13 @@ def sim_cambio_perfil(retornos, meta, monto, horizonte, aporte, crecimiento_apor
     # Línea vertical en el momento del cambio
     if bs_a_corto["fechas"] is not None and len(bs_a_corto["fechas"]) > 0:
         fecha_cambio = bs_a_corto["fechas"][-1]
-        x_vline = int(pd.Timestamp(fecha_cambio).timestamp() * 1000)
-        fig.add_vline(x=x_vline, line_dash="dash", line_color="#aaa",
-                      annotation_text=f"Cambio → {perfil_b}")
+        fig.add_shape(type="line",
+                      x0=fecha_cambio, x1=fecha_cambio, y0=0, y1=1,
+                      xref="x", yref="paper",
+                      line=dict(color="#aaaaaa", width=1.5, dash="dash"))
+        fig.add_annotation(x=fecha_cambio, y=0.97, xref="x", yref="paper",
+                           text=f"Cambio → {perfil_b}", showarrow=False,
+                           yanchor="top", font=dict(color="#aaaaaa", size=11))
 
     capital_acum = _capital_acum(monto, aporte, crecimiento_aporte, n_total)
     fig.add_trace(go.Scatter(
@@ -2192,10 +2196,14 @@ def sim_independencia(retornos, meta, monto, aporte, crecimiento_aporte):
                   annotation_text="Capital agotado")
 
     # Línea vertical separando fases
-    x_vline = int(pd.Timestamp(fechas_acum[-1]).timestamp() * 1000)
-    fig.add_vline(x=x_vline, line_dash="dash", line_color="white",
-                  annotation_text=f"Inicio retiro (año {años_acum})",
-                  annotation_font_color="white")
+    fecha_sep = fechas_acum[-1]
+    fig.add_shape(type="line",
+                  x0=fecha_sep, x1=fecha_sep, y0=0, y1=1,
+                  xref="x", yref="paper",
+                  line=dict(color="white", width=1.5, dash="dash"))
+    fig.add_annotation(x=fecha_sep, y=0.97, xref="x", yref="paper",
+                       text=f"Inicio retiro (año {años_acum})", showarrow=False,
+                       yanchor="top", font=dict(color="white", size=11))
 
     fig.update_layout(height=560, hovermode="x unified",
                       yaxis_title="Capital (CLP)", yaxis_tickformat=",",
