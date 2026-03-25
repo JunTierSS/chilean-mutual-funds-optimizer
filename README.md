@@ -215,9 +215,9 @@ pip install hmmlearn arch   # HMM regimes + GARCH (graceful fallback if absent)
 
 ## Author
 
-**YOUR NAME** — Industrial Civil Engineer + MSc Data Science
+**Junwei He** — Industrial Civil Engineer + MSc Data Science
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://linkedin.com/in/JunTierSS)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://linkedin.com/in/junweihe)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?logo=github)](https://github.com/JunTierSS)
 
 ---
