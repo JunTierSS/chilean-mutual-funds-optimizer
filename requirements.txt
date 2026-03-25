@@ -1,15 +1,14 @@
-# Core data
-pandas==2.2.3
-numpy==1.26.4
-scipy==1.13.1
+# Core data (sin pin: Python 3.14 compat)
+pandas
+numpy
+scipy
 
 # Machine learning
-scikit-learn==1.6.1
-# hmmlearn and arch excluded: no Python 3.14 wheels; app has graceful fallbacks
+scikit-learn
 
-# Visualization
+# Visualization (pinned: API crítica)
 plotly==6.6.0
 streamlit==1.50.0
 
 # Export
-openpyxl==3.1.5
+openpyxl
