@@ -2351,6 +2351,12 @@ def main():
     perfil_labels = {"conservador": "🟢 Conservador", "moderado": "🟡 Moderado",
                      "agresivo": "🔴 Agresivo", "optimo": "⭐ Óptimo Global"}
     st.title("🇨🇱 Chilean Mutual Funds — Portfolio Optimizer")
+    st.markdown(
+        "**Junwei He** · MSc Data Science, Universidad de Chile &nbsp;|&nbsp; "
+        "📧 [junweihemai1@gmail.com](mailto:junweihemai1@gmail.com) &nbsp;|&nbsp; "
+        "[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?logo=linkedin&logoColor=white&style=flat-square)](https://www.linkedin.com/in/junwei-he-mai-96bb83131/) &nbsp;"
+        "[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white&style=flat-square)](https://github.com/JunTierSS)"
+    )
     st.caption(
         f"{n_ch} fondos · {len(retornos)} meses · "
         f"Perfil: **{perfil_labels[perfil]}** · "
