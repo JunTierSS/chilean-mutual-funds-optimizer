@@ -1,6 +1,14 @@
 # 🇨🇱 Chilean Mutual Funds — Portfolio Optimizer
 
-> **Interactive Streamlit app for quantitative analysis and optimization of Chilean mutual funds. Combines Modern Portfolio Theory, robust covariance estimation, market regime detection, and Monte Carlo simulation in a single dashboard.**
+> **Academic and portfolio project. Interactive Streamlit app for quantitative analysis and optimization of Chilean mutual funds. Combines Modern Portfolio Theory, robust covariance estimation, market regime detection, and Monte Carlo simulation in a single dashboard.**
+
+---
+
+> ⛔ **AVISO IMPORTANTE / IMPORTANT NOTICE**
+>
+> Este proyecto es un **trabajo académico y de portafolio personal**, desarrollado con fines de aprendizaje, investigación y demostración técnica. **No constituye asesoría financiera, recomendación de inversión ni herramienta de gestión de activos.** Los resultados, proyecciones y análisis presentados son simulaciones basadas en datos históricos y modelos estadísticos que no garantizan resultados futuros. **Antes de tomar cualquier decisión de inversión, consulta con un asesor financiero certificado.**
+>
+> This project is an **academic and personal portfolio work** for learning, research and technical demonstration purposes only. **It does not constitute financial advice, investment recommendation or asset management tool.** Results, projections and analyses are simulations based on historical data and statistical models that do not guarantee future performance. **Always consult a certified financial advisor before making any investment decision.**
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.50-red?logo=streamlit)](https://streamlit.io)
@@ -222,6 +230,12 @@ pip install hmmlearn arch   # HMM regimes + GARCH (graceful fallback if absent)
 
 ---
 
+## Acknowledgments
+
+This project was developed with the assistance of **[Claude](https://claude.ai)** (Anthropic), used as an AI pair programmer for code architecture, debugging, and iterative refinement of the quantitative modules. All methodology decisions, data sourcing, and domain expertise are the author's own.
+
+---
+
 ## References
 
 - Markowitz, H. (1952). Portfolio selection. *Journal of Finance*.
@@ -239,4 +253,4 @@ MIT License — free to use, modify and distribute with attribution.
 
 ---
 
-> ⚠️ **Disclaimer:** This project is for educational and research purposes only. Past performance does not guarantee future results. This is not financial advice.
+> ⚠️ **Disclaimer:** This is an academic portfolio project for educational and research purposes only. Past performance does not guarantee future results. **This is not financial advice — consult a certified financial advisor before making any investment decision.**
