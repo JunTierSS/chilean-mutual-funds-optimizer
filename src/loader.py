@@ -71,12 +71,51 @@ FONDOS_LARRAIN_VIAL = {
     "0P0000TG62": {"nombre": "LV Enfoque I",                         "perfil": "moderado",    "moneda": "CLP"},
 }
 
+# ── Fondos nuevas corredoras (descargados via scripts/fetch_investing.py) ─────
+FONDOS_BCI = {
+    "0P0000KA6F": {"nombre": "BCI Selección Bursátil APV",            "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KA6R": {"nombre": "BCI Emergente Global APV",              "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KA7G": {"nombre": "BCI de Personas APV",                   "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KA71": {"nombre": "BCI Cartera Dinámica Balanceada APV",   "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000V2S1": {"nombre": "BCI Estrategia UF Hasta 3 años",        "perfil": "conservador", "moneda": "CLP"},
+}
+
+FONDOS_BICE = {
+    "0P0000KA3H": {"nombre": "Bice Acciones Chile Mid Cap A",         "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KA3L": {"nombre": "Bice Acciones Chile Mid Cap I",         "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KA3T": {"nombre": "Bice Renta UF A",                       "perfil": "conservador", "moneda": "CLP"},
+    "0P0000KA3U": {"nombre": "Bice Renta UF B",                       "perfil": "conservador", "moneda": "CLP"},
+    "0P0000KA37": {"nombre": "Bice Estrategia Balanceada B",          "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000N0W0": {"nombre": "Bice Estrategia Balanceada D",          "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000RT12": {"nombre": "Bice Chile Activo B",                   "perfil": "agresivo",    "moneda": "CLP"},
+}
+
+FONDOS_BANCOCHILE = {
+    "0P0000MOIN": {"nombre": "BancoEstado Acciones Desarrolladas APV","perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000Z8US": {"nombre": "BancoEstado Protección I",              "perfil": "conservador", "moneda": "CLP"},
+    "0P0000Z8UU": {"nombre": "BancoEstado Más Renta Bicentenario I",  "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000Z8UW": {"nombre": "BancoEstado Compromiso I",              "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KASM": {"nombre": "BancoEstado Compromiso A",              "perfil": "moderado",    "moneda": "CLP"},
+}
+
+FONDOS_SECURITY = {
+    "0P0000N3XH": {"nombre": "Security Global APV1",                  "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KBV4": {"nombre": "Security Crecimiento Estratégico B",    "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KNC5": {"nombre": "Security Index Fund US I-APV",          "perfil": "agresivo",    "moneda": "USD"},
+    "0P0000KBJZ": {"nombre": "Security Gold B",                       "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KBKO": {"nombre": "Security Deuda Corp. Latinoam. I-APV",  "perfil": "moderado",    "moneda": "CLP"},
+}
+
 # SP500 como activo — integrado desde el inicio
 FONDOS_EXTERNOS = {
     "SP500": {"nombre": "S&P 500 (CLP)", "perfil": "sp500", "moneda": "USD"},
 }
 
-ALL_FONDOS = {**FONDOS_SANTANDER, **FONDOS_LARRAIN_VIAL, **FONDOS_EXTERNOS}
+ALL_FONDOS = {
+    **FONDOS_SANTANDER, **FONDOS_LARRAIN_VIAL,
+    **FONDOS_BCI, **FONDOS_BICE, **FONDOS_BANCOCHILE, **FONDOS_SECURITY,
+    **FONDOS_EXTERNOS,
+}
 
 MESES = {
     "Ene":"01","Feb":"02","Mar":"03","Abr":"04","May":"05","Jun":"06",
@@ -227,12 +266,15 @@ def cargar_todos(base_dir="data", fecha_inicio="2020-01-01",
     base_dir = Path(base_dir)
     dfs = []
 
-    # Fondos chilenos
-    for key, prefijo in [("santander", "Datos_historicos_"),
-                          ("larrain_vial", "Datos_historicos_")]:
+    # Fondos chilenos — brokers existentes + nuevos (si tienen datos descargados)
+    brokers_conocidos = [
+        "santander", "larrain_vial",
+        "bci", "bice", "bancochile", "security",
+    ]
+    for key in brokers_conocidos:
         ruta = base_dir / key
-        if ruta.exists():
-            df = cargar_corredora(ruta, key, prefijo)
+        if ruta.exists() and any(ruta.glob("*.csv")):
+            df = cargar_corredora(ruta, key, "Datos_historicos_")
             if not df.empty:
                 dfs.append(df)
                 print("  {}: {} fondos, {} registros".format(

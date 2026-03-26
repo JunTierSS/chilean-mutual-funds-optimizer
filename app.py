@@ -255,9 +255,23 @@ def render_sidebar():
         st.divider()
 
         st.markdown("**Universo de inversión**")
-        use_sant = st.checkbox("Santander AM",  value=True)
+        use_sant = st.checkbox("Santander AM",   value=True)
         use_lv   = st.checkbox("LarrainVial AM", value=True)
         use_sp   = st.checkbox("S&P 500 (CLP)",  value=True)
+
+        # Nuevas corredoras — disponibles solo si se han descargado los datos
+        import os as _os
+        _has_bci  = _os.path.isdir("data/bci")        and bool(list(__import__("pathlib").Path("data/bci").glob("*.csv")))
+        _has_bice = _os.path.isdir("data/bice")       and bool(list(__import__("pathlib").Path("data/bice").glob("*.csv")))
+        _has_be   = _os.path.isdir("data/bancochile") and bool(list(__import__("pathlib").Path("data/bancochile").glob("*.csv")))
+        _has_sec  = _os.path.isdir("data/security")   and bool(list(__import__("pathlib").Path("data/security").glob("*.csv")))
+
+        if any([_has_bci, _has_bice, _has_be, _has_sec]):
+            st.caption("Corredoras adicionales")
+        use_bci  = st.checkbox("BCI",          value=_has_bci,  disabled=not _has_bci)
+        use_bice = st.checkbox("Bice Inv.",    value=_has_bice, disabled=not _has_bice)
+        use_be   = st.checkbox("BancoEstado",  value=_has_be,   disabled=not _has_be)
+        use_sec  = st.checkbox("Security",     value=_has_sec,  disabled=not _has_sec)
 
         st.divider()
         st.markdown("**Perfil de riesgo**")
@@ -320,13 +334,16 @@ def render_sidebar():
         crecimiento_aporte = crecimiento_pct / 100 if aporte > 0 else 0.0
 
         st.divider()
-        st.caption("Datos: Santander AM + LarrainVial | 2020–2026")
-        st.caption("Fuente: Investing.com · CMF")
+        st.caption("Fuente: Investing.com · CMF · 2020–2026")
 
     brokers = []
     if use_sant: brokers.append("santander")
     if use_lv:   brokers.append("larrain_vial")
     if use_sp:   brokers.append("externo")
+    if use_bci:  brokers.append("bci")
+    if use_bice: brokers.append("bice")
+    if use_be:   brokers.append("bancochile")
+    if use_sec:  brokers.append("security")
     return perfil, monto, horizonte, aporte, crecimiento_aporte, brokers
 
 
@@ -343,7 +360,15 @@ def tab_mercado(retornos, meta, brokers):
     fecha_fin = retornos.index.max().strftime("%b %Y")
 
     # Corredoras activas dinámicas
-    nombres_broker = {"santander": "Santander AM", "larrain_vial": "LarrainVial AM", "externo": "S&P 500 (CLP)"}
+    nombres_broker = {
+        "santander":   "Santander AM",
+        "larrain_vial":"LarrainVial AM",
+        "externo":     "S&P 500 (CLP)",
+        "bci":         "BCI",
+        "bice":        "Bice Inv.",
+        "bancochile":  "BancoEstado",
+        "security":    "Security",
+    }
     corredoras_str = " · ".join(nombres_broker[b] for b in brokers if b in nombres_broker)
 
     c1, c2, c3, c4 = st.columns(4)
