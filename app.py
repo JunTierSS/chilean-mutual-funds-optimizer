@@ -2562,47 +2562,64 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
             st.write(f"{tipo} {nombre}: **{w*100:.1f}%**")
 
     # ── Calcular retorno mensual promedio por día (datos históricos) ───────────
-    # Para cada día d: r_d = promedio de retornos mensuales del portafolio
-    # cuando se compra el día d de cada mes y se vende el día d del mes siguiente.
-    @st.cache_data(show_spinner="Calculando retorno promedio por día…")
-    def _retornos_por_dia(_pesos_tuple, _n_diarios):
-        import pandas as _pd3
-        td7   = _pd3.Timedelta(days=7)
-        meses = sorted({(s.index.year[i], s.index.month[i])
-                        for f, s in precios_fondo.items()
-                        for i in range(len(s.index))})
+    with st.spinner("Calculando retorno histórico promedio por día…"):
+        # Precompute price lookup: {fondo: {(year, month, day): price}}
+        price_lkp = {}
+        for fondo, serie in precios_fondo.items():
+            lkp = {}
+            for ts, val in serie.items():
+                key = (ts.year, ts.month, ts.day)
+                if key not in lkp and val > 0:
+                    lkp[key] = float(val)
+            price_lkp[fondo] = lkp
+
+        def _get_price(fondo, y, m, d):
+            lkp = price_lkp.get(fondo, {})
+            for offset in range(8):
+                try:
+                    ts2 = pd_loc.Timestamp(y, m, d) + pd_loc.Timedelta(days=offset)
+                    v = lkp.get((ts2.year, ts2.month, ts2.day))
+                    if v is not None:
+                        return v
+                except Exception:
+                    pass
+            return None
+
+        # Consecutive month pairs from DAILY data only (evita brechas)
+        ref_idx     = precios_diarios.index
+        all_months  = sorted(set(zip(ref_idx.year, ref_idx.month)))
+        consec_pairs = [
+            (y_c, m_c, y_n, m_n)
+            for (y_c, m_c), (y_n, m_n) in zip(all_months, all_months[1:])
+            if (pd_loc.Timestamp(y_n, m_n, 1) - pd_loc.Timestamp(y_c, m_c, 1)).days <= 35
+        ]
+
         r_por_dia = {}
         for dia in range(1, 29):
-            retornos_mes = []
-            for i in range(len(meses) - 1):
-                y_c, m_c = meses[i]
-                y_n, m_n = meses[i + 1]
+            monthly_rets = []
+            for y_c, m_c, y_n, m_n in consec_pairs:
                 r_port = 0.0
-                ok = True
-                for fondo, peso in precios_fondo.items():
-                    serie = precios_fondo[fondo]
-                    try:
-                        fc = _pd3.Timestamp(year=y_c, month=m_c, day=dia)
-                        fn = _pd3.Timestamp(year=y_n, month=m_n, day=dia)
-                    except ValueError:
+                ok     = True
+                for fondo, peso in pesos.items():
+                    p_c = _get_price(fondo, y_c, m_c, dia)
+                    p_n = _get_price(fondo, y_n, m_n, dia)
+                    if p_c is None or p_n is None or p_c <= 0:
                         ok = False; break
-                    cc = serie[(serie.index >= fc) & (serie.index <= fc + td7)]
-                    cn = serie[(serie.index >= fn) & (serie.index <= fn + td7)]
-                    if cc.empty or cn.empty or float(cc.iloc[0]) <= 0:
+                    r = p_n / p_c - 1
+                    if r > 0.30 or r < -0.30:   # sanity: >30% mensual es imposible
                         ok = False; break
-                    r_port += pesos[fondo] * (float(cn.iloc[0]) / float(cc.iloc[0]) - 1)
+                    r_port += peso * r
                 if ok:
-                    retornos_mes.append(r_port)
-            r_por_dia[dia] = float(np.mean(retornos_mes)) if retornos_mes else 0.0
-        return r_por_dia
+                    monthly_rets.append(r_port)
+            r_por_dia[dia] = (float(np.mean(monthly_rets))
+                              if len(monthly_rets) >= 3
+                              else res["ret_anual"] / 12)
 
-    pesos_tuple = tuple(sorted(pesos.items()))
-    with st.spinner("Calculando retorno histórico promedio por día…"):
-        r_por_dia = _retornos_por_dia(pesos_tuple, n_diarios)
-
-    r_base  = res["ret_anual"] / 12          # retorno mensual del portafolio (optimizador)
-    r_dia_a = r_base + (r_por_dia.get(dia_a, r_base) - np.mean(list(r_por_dia.values())))
-    r_dia_b = r_base + (r_por_dia.get(dia_b, r_base) - np.mean(list(r_por_dia.values())))
+    r_base  = res["ret_anual"] / 12
+    r_mean  = float(np.mean(list(r_por_dia.values())))
+    # Ajuste diferencial: r_dia = r_base + (r_historico_dia - r_historico_media)
+    r_dia_a = r_base + (r_por_dia.get(dia_a, r_base) - r_mean)
+    r_dia_b = r_base + (r_por_dia.get(dia_b, r_base) - r_mean)
 
     # ── Gráfico 1: retorno promedio por día (barras) ───────────────────────────
     st.divider()
