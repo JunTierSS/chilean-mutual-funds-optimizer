@@ -89,8 +89,21 @@ LAYOUT_DARK = dict(
 # CARGA Y CACHÉ DE DATOS
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _data_fingerprint():
+    """Hash basado en la fecha de modificación más reciente de los CSV de datos."""
+    import os
+    from pathlib import Path as _P
+    mtimes = []
+    for p in _P("data").rglob("*.csv"):
+        try:
+            mtimes.append(int(os.path.getmtime(p)))
+        except OSError:
+            pass
+    return max(mtimes) if mtimes else 0
+
+
 @st.cache_data(show_spinner="Cargando fondos históricos…")
-def load_data():
+def load_data(_fingerprint=0):
     return cargar_todos(base_dir="data", fecha_inicio="2020-01-01")
 
 
@@ -2362,7 +2375,7 @@ def main():
 
     # Carga de datos
     try:
-        df_long, retornos_all, precios_all, meta_all = load_data()
+        df_long, retornos_all, precios_all, meta_all = load_data(_fingerprint=_data_fingerprint())
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
         st.caption("Asegúrate de ejecutar `streamlit run app.py` desde la carpeta raíz del proyecto.")
