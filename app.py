@@ -2416,6 +2416,7 @@ def main():
         "⚡ Stress Test",
         "🔬 Clustering",
         "🎮 Simulador",
+        "📅 Día Óptimo",
     ])
 
     with tabs[0]: tab_mercado(retornos, meta, brokers)
@@ -2428,6 +2429,200 @@ def main():
     with tabs[7]: tab_stress(retornos, meta, monto)
     with tabs[8]: tab_clustering(retornos, meta)
     with tabs[9]: tab_simulador(retornos, meta, monto, horizonte, aporte, crecimiento_aporte)
+    with tabs[10]: tab_dia_optimo(retornos, meta, monto, aporte)
+
+
+# ---------------------------------------------------------------------------
+def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
+    """Simula DCA: ¿qué día del mes conviene más invertir?"""
+    st.header("📅 Día Óptimo de Inversión")
+    st.caption(
+        "Simula un aporte mensual fijo durante N años y calcula el capital final "
+        "según qué día del mes se invierte. Requiere datos diarios."
+    )
+
+    # ── Verificar datos diarios ──────────────────────────────────────────────
+    import glob as _glob
+
+    daily_files = _glob.glob("data/**/daily/*.csv", recursive=True)
+    if not daily_files:
+        st.warning(
+            "⚠️ No hay datos diarios descargados aún. "
+            "Ejecuta en tu terminal:\n\n"
+            "```bash\npython3 scripts/fetch_investing.py --interval daily --no-push\n```"
+        )
+        return
+
+    # ── Cargar datos diarios ─────────────────────────────────────────────────
+    @st.cache_data(show_spinner="Cargando precios diarios…")
+    def _load_daily():
+        frames = []
+        for f in _glob.glob("data/**/daily/*.csv", recursive=True):
+            try:
+                df = _pd.read_csv(f, thousands=".", decimal=",")
+                # Columnas esperadas: Fecha, Último
+                if "Fecha" not in df.columns or "Último" not in df.columns:
+                    continue
+                mid = _os.path.basename(f).replace("Datos_diarios_", "").replace(".csv", "")
+                df = df[["Fecha", "Último"]].copy()
+                df.columns = ["fecha", "precio"]
+                df["fecha"] = _pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
+                df["precio"] = (
+                    df["precio"]
+                    .astype(str)
+                    .str.replace(".", "", regex=False)
+                    .str.replace(",", ".", regex=False)
+                    .apply(_pd.to_numeric, errors="coerce")
+                )
+                df = df.dropna().sort_values("fecha").set_index("fecha")
+                df.columns = [mid]
+                frames.append(df)
+            except Exception:
+                pass
+        if not frames:
+            return None
+        return _pd.concat(frames, axis=1).sort_index()
+
+    precios_diarios = _load_daily()
+    if precios_diarios is None or precios_diarios.empty:
+        st.error("No se pudieron cargar los datos diarios.")
+        return
+
+    # ── Controles ────────────────────────────────────────────────────────────
+    fondos_diarios = list(precios_diarios.columns)
+    nombres_diarios = {f: meta.get(f, {}).get("nombre", f) for f in fondos_diarios}
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        fondo_sel = st.selectbox(
+            "Fondo",
+            fondos_diarios,
+            format_func=lambda x: nombres_diarios.get(x, x),
+        )
+    with col2:
+        aporte = st.number_input(
+            "Aporte mensual (CLP)",
+            min_value=10_000,
+            max_value=50_000_000,
+            value=int(aporte_mensual) if aporte_mensual > 0 else 100_000,
+            step=10_000,
+            format="%d",
+        )
+    with col3:
+        anos = st.slider("Horizonte (años)", min_value=1, max_value=20, value=5)
+
+    st.caption(f"CLP {aporte:,.0f}/mes · {anos} años · {12*anos} aportes")
+
+    # ── Simulación ───────────────────────────────────────────────────────────
+    serie = precios_diarios[fondo_sel].dropna()
+    fecha_fin = serie.index.max()
+    fecha_ini = fecha_fin - _pd.DateOffset(years=anos)
+    serie = serie[serie.index >= fecha_ini]
+
+    if len(serie) < 30:
+        st.warning("Hay muy pocos datos diarios para este fondo. Descarga más histórico.")
+        return
+
+    resultados = {}
+    for dia in range(1, 29):
+        unidades = 0.0
+        for anio in range(fecha_ini.year, fecha_fin.year + 1):
+            for mes in range(1, 13):
+                # Busca el precio en el día pedido o el siguiente día hábil
+                try:
+                    fecha_objetivo = _pd.Timestamp(year=anio, month=mes, day=dia)
+                except ValueError:
+                    continue
+                if fecha_objetivo < fecha_ini or fecha_objetivo > fecha_fin:
+                    continue
+                # Precio más cercano (desde ese día hacia adelante dentro del mes)
+                candidatos = serie[
+                    (serie.index >= fecha_objetivo) &
+                    (serie.index <= fecha_objetivo + _pd.Timedelta(days=7))
+                ]
+                if candidatos.empty:
+                    continue
+                precio_compra = candidatos.iloc[0]
+                if precio_compra > 0:
+                    unidades += aporte / precio_compra
+
+        precio_actual = serie.iloc[-1]
+        resultados[dia] = unidades * precio_actual
+
+    if not resultados:
+        st.error("No se pudo simular ningún día.")
+        return
+
+    df_res = _pd.DataFrame.from_dict(resultados, orient="index", columns=["capital_final"])
+    df_res.index.name = "dia_mes"
+    total_invertido = aporte * anos * 12
+    df_res["rentabilidad_pct"] = (df_res["capital_final"] / total_invertido - 1) * 100
+
+    dia_optimo = df_res["capital_final"].idxmax()
+    dia_peor   = df_res["capital_final"].idxmin()
+    diff_clp   = df_res["capital_final"].max() - df_res["capital_final"].min()
+    diff_pct   = df_res["rentabilidad_pct"].max() - df_res["rentabilidad_pct"].min()
+
+    # ── Métricas resumen ─────────────────────────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Mejor día", f"Día {dia_optimo}", f"CLP {df_res.loc[dia_optimo,'capital_final']:,.0f}")
+    c2.metric("Peor día",  f"Día {dia_peor}",  f"CLP {df_res.loc[dia_peor,'capital_final']:,.0f}")
+    c3.metric("Diferencia capital", f"CLP {diff_clp:,.0f}")
+    c4.metric("Diferencia rentab.", f"{diff_pct:.1f} pp")
+
+    # ── Gráfico barras ───────────────────────────────────────────────────────
+    colors = [
+        "#2ecc71" if d == dia_optimo else
+        "#e74c3c" if d == dia_peor else
+        "#4C9BE8"
+        for d in df_res.index
+    ]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_res.index,
+        y=df_res["capital_final"],
+        marker_color=colors,
+        text=[f"CLP {v:,.0f}" for v in df_res["capital_final"]],
+        textposition="outside",
+        hovertemplate="Día %{x}<br>Capital: CLP %{y:,.0f}<extra></extra>",
+    ))
+    fig.add_hline(
+        y=total_invertido,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text=f"Invertido: CLP {total_invertido:,.0f}",
+        annotation_position="bottom right",
+    )
+    fig.update_layout(
+        title=f"Capital final por día de aporte — {nombres_diarios.get(fondo_sel, fondo_sel)}",
+        xaxis_title="Día del mes",
+        yaxis_title="Capital final (CLP)",
+        xaxis=dict(tickmode="linear", dtick=1),
+        height=500,
+        showlegend=False,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── Tabla detalle ────────────────────────────────────────────────────────
+    with st.expander("Ver tabla completa"):
+        st.dataframe(
+            df_res.rename(columns={
+                "capital_final": "Capital final (CLP)",
+                "rentabilidad_pct": "Rentabilidad (%)",
+            }).style.format({
+                "Capital final (CLP)": "{:,.0f}",
+                "Rentabilidad (%)": "{:.2f}%",
+            }).background_gradient(subset=["Capital final (CLP)"], cmap="RdYlGn"),
+            use_container_width=True,
+        )
+
+    st.info(
+        f"💡 Invertir el **día {dia_optimo}** habría generado "
+        f"**CLP {diff_clp:,.0f} más** que el peor día (día {dia_peor}) "
+        f"en los últimos {anos} años."
+    )
 
 
 if __name__ == "__main__":
