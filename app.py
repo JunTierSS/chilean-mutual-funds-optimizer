@@ -2459,7 +2459,8 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
         frames = []
         for f in _glob.glob("data/**/daily/*.csv", recursive=True):
             try:
-                df = _pd.read_csv(f, thousands=".", decimal=",")
+                df = _pd.read_csv(f, encoding="utf-8-sig", dtype=str)
+                df.columns = df.columns.str.strip()
                 # Columnas esperadas: Fecha, Último
                 if "Fecha" not in df.columns or "Último" not in df.columns:
                     continue
@@ -2469,7 +2470,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
                 df["fecha"] = _pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
                 df["precio"] = (
                     df["precio"]
-                    .astype(str)
+                    .str.replace('"', "", regex=False)
                     .str.replace(".", "", regex=False)
                     .str.replace(",", ".", regex=False)
                     .apply(_pd.to_numeric, errors="coerce")
