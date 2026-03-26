@@ -2526,40 +2526,38 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
     n_acum   = anos_acum * 12
     n_ret    = anos_ret   * 12
 
-    # ── Optimizar portafolio (retornos mensuales) ─────────────────────────────
-    res = run_optimization(retornos, meta, perfil_sel)
+    # ── Optimizar portafolio solo con fondos que tienen datos diarios reales ──
+    fondos_con_diarios = [c for c in precios_diarios.columns if c in retornos.columns]
+    if len(fondos_con_diarios) < 2:
+        st.warning("⚠️ No hay suficientes fondos con datos diarios para optimizar.")
+        return
+    retornos_diarios = retornos[fondos_con_diarios].dropna(axis=1, how="all")
+    res = run_optimization(retornos_diarios, meta, perfil_sel)
     if res is None:
-        st.warning("No se pudo optimizar el portafolio.")
+        st.warning("No se pudo optimizar el portafolio con datos diarios.")
         return
 
     composicion = res["composicion"]
 
-    # ── Construir series de precios (diarios + mensuales interpolados) ─────────
-    precios_fondo = {}
-    for f in composicion:
-        if f in precios_diarios.columns:
-            precios_fondo[f] = precios_diarios[f].dropna()
-        elif f in retornos.columns:
-            ret_f = retornos[f].dropna()
-            precios_fondo[f] = (1000.0 * (1 + ret_f).cumprod()).resample("D").ffill()
+    # ── Construir series de precios (todos con datos diarios reales) ───────────
+    precios_fondo = {f: precios_diarios[f].dropna()
+                     for f in composicion if f in precios_diarios.columns}
 
     if not precios_fondo:
-        st.warning("Sin datos para el portafolio.")
+        st.warning("Sin datos diarios para el portafolio.")
         return
 
-    total_w   = sum(composicion[f] for f in precios_fondo)
-    pesos     = {f: composicion[f] / total_w for f in precios_fondo}
-    n_diarios = sum(1 for f in pesos if f in precios_diarios.columns)
+    pesos = {f: composicion[f] for f in precios_fondo}
+    total_w = sum(pesos.values())
+    pesos = {f: w / total_w for f, w in pesos.items()}
 
     st.caption(
-        f"Portafolio **{res['label']}** · {len(pesos)} fondos "
-        f"({n_diarios} con precios diarios, {len(pesos)-n_diarios} con precio mensual interpolado)"
+        f"Portafolio **{res['label']}** optimizado con datos diarios · {len(pesos)} fondos con precios reales"
     )
     with st.expander("Composición del portafolio"):
         for f, w in sorted(pesos.items(), key=lambda x: -x[1]):
             nombre = meta.loc[f, "nombre"] if f in meta.index else f
-            tipo   = "📊" if f in precios_diarios.columns else "📅"
-            st.write(f"{tipo} {nombre}: **{w*100:.1f}%**")
+            st.write(f"📊 {nombre}: **{w*100:.1f}%**")
 
     # ── Calcular retorno mensual promedio por día (datos históricos) ───────────
     with st.spinner("Calculando retorno histórico promedio por día…"):
