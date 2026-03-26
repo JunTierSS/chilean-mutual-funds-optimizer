@@ -2435,6 +2435,7 @@ def main():
 # ---------------------------------------------------------------------------
 def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
     """Simula DCA: ¿qué día del mes conviene más invertir?"""
+    import pandas as _pd_local
     st.header("📅 Día Óptimo de Inversión")
     st.caption(
         "Simula un aporte mensual fijo durante N años y calcula el capital final "
@@ -2528,7 +2529,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
     # ── Simulación ───────────────────────────────────────────────────────────
     serie = precios_diarios[fondo_sel].dropna()
     fecha_fin = serie.index.max()
-    fecha_ini = fecha_fin - _pd.DateOffset(years=anos)
+    fecha_ini = fecha_fin - _pd_local.DateOffset(years=anos)
     serie = serie[serie.index >= fecha_ini]
 
     if len(serie) < 30:
@@ -2542,7 +2543,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
             for mes in range(1, 13):
                 # Busca el precio en el día pedido o el siguiente día hábil
                 try:
-                    fecha_objetivo = _pd.Timestamp(year=anio, month=mes, day=dia)
+                    fecha_objetivo = _pd_local.Timestamp(year=anio, month=mes, day=dia)
                 except ValueError:
                     continue
                 if fecha_objetivo < fecha_ini or fecha_objetivo > fecha_fin:
@@ -2550,7 +2551,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
                 # Precio más cercano (desde ese día hacia adelante dentro del mes)
                 candidatos = serie[
                     (serie.index >= fecha_objetivo) &
-                    (serie.index <= fecha_objetivo + _pd.Timedelta(days=7))
+                    (serie.index <= fecha_objetivo + _pd_local.Timedelta(days=7))
                 ]
                 if candidatos.empty:
                     continue
@@ -2565,7 +2566,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
         st.error("No se pudo simular ningún día.")
         return
 
-    df_res = _pd.DataFrame.from_dict(resultados, orient="index", columns=["capital_final"])
+    df_res = _pd_local.DataFrame.from_dict(resultados, orient="index", columns=["capital_final"])
     df_res.index.name = "dia_mes"
     total_invertido = aporte * anos * 12
     df_res["rentabilidad_pct"] = (df_res["capital_final"] / total_invertido - 1) * 100
