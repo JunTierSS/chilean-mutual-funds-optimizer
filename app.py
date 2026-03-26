@@ -2463,12 +2463,12 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
                 mid = fp.stem.replace("Datos_diarios_", "")
                 df = df[["Fecha", col_u]].copy()
                 df.columns = ["fecha", "precio"]
-                df["fecha"] = _pd2.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
-                df["precio"] = (
-                    df["precio"].str.replace('"', "", regex=False)
-                    .str.replace(".", "", regex=False)
-                    .str.replace(",", ".", regex=False)
-                    .apply(_pd2.to_numeric, errors="coerce")
+                df["fecha"] = _pd2.to_datetime(df["fecha"], dayfirst=False, errors="coerce")
+                # Dos formatos: europeo "2.989,892" o numérico "3257.85"
+                precio_str = df["precio"].str.replace('"', "", regex=False)
+                if precio_str.str.contains(",").any():
+                    precio_str = precio_str.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+                df["precio"] = precio_str.apply(_pd2.to_numeric, errors="coerce"
                 )
                 df = df.dropna().sort_values("fecha").set_index("fecha")
                 df.columns = [mid]

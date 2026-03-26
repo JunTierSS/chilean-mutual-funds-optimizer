@@ -12,3 +12,6 @@ streamlit==1.50.0
 
 # Export
 openpyxl
+
+# Market data
+yfinance

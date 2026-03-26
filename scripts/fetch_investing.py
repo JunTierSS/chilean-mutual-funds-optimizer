@@ -275,6 +275,40 @@ def update_all(brokers: dict, interval: str, dry_run: bool) -> dict:
     return stats
 
 
+def update_sp500_daily(dry_run: bool) -> dict:
+    """Descarga datos diarios del SP500 via yfinance y guarda CSV."""
+    import yfinance as yf
+    import pandas as pd
+
+    out_dir = Path(__file__).parent.parent / "data" / "raw" / "daily"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "Datos_diarios_sp500.csv"
+
+    print("\n📈 Actualizando SP500 diario (yfinance)…")
+    try:
+        ticker = yf.Ticker("^GSPC")
+        hist = ticker.history(start="2020-01-01", auto_adjust=True)
+        if hist.empty:
+            print("  ❌ yfinance no devolvió datos para ^GSPC")
+            return {"ok": 0, "error": 1, "skip": 0}
+
+        df = hist[["Close"]].copy()
+        df.index = df.index.tz_localize(None)
+        df.index.name = "Fecha"
+        df.columns = ["Último"]
+        df = df.sort_index()
+
+        if not dry_run:
+            df.to_csv(out_path)
+            print(f"  ✅ {len(df):>5} filas  → data/raw/daily/Datos_diarios_sp500.csv")
+        else:
+            print(f"  [dry-run] escribiría {len(df)} filas → {out_path.name}")
+        return {"ok": 1, "error": 0, "skip": 0}
+    except Exception as e:
+        print(f"  ❌ Error descargando SP500: {e}")
+        return {"ok": 0, "error": 1, "skip": 0}
+
+
 def git_commit_push(dry_run: bool):
     """Commit y push automático si hay cambios en data/."""
     result = subprocess.run(
@@ -337,6 +371,9 @@ def main():
     for interval in intervals:
         total = update_all(brokers, interval, args.dry_run)
         print(f"\n[{interval}] ✅ {total['ok']} ok · ❌ {total['error']} errores · ⏭️  {total['skip']} sin cambios")
+
+    # SP500 diario siempre se actualiza (usa yfinance, no Investing.com)
+    update_sp500_daily(args.dry_run)
 
     if not args.dry_run and not args.no_push:
         print("\n📤 Commiteando y pusheando a GitHub...")
