@@ -2456,16 +2456,21 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
     # ── Cargar datos diarios ─────────────────────────────────────────────────
     @st.cache_data(show_spinner="Cargando precios diarios…")
     def _load_daily():
+        import pathlib as _pl
+        base = _pl.Path(__file__).parent / "data"
         frames = []
-        for f in _glob.glob("data/**/daily/*.csv", recursive=True):
+        parse_errors = []
+        all_files = list(base.glob("**/daily/*.csv"))
+        for fp in all_files:
             try:
-                df = _pd.read_csv(f, encoding="utf-8-sig", dtype=str)
+                df = _pd.read_csv(fp, encoding="utf-8-sig", dtype=str)
                 df.columns = df.columns.str.strip()
-                # Columnas esperadas: Fecha, Último
-                if "Fecha" not in df.columns or "Último" not in df.columns:
+                col_u = next((c for c in df.columns if "ltimo" in c or "ltimo" in c.lower()), None)
+                if "Fecha" not in df.columns or col_u is None:
+                    parse_errors.append(f"cols: {fp.name} → {df.columns.tolist()}")
                     continue
-                mid = _os.path.basename(f).replace("Datos_diarios_", "").replace(".csv", "")
-                df = df[["Fecha", "Último"]].copy()
+                mid = fp.stem.replace("Datos_diarios_", "")
+                df = df[["Fecha", col_u]].copy()
                 df.columns = ["fecha", "precio"]
                 df["fecha"] = _pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
                 df["precio"] = (
@@ -2478,15 +2483,20 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
                 df = df.dropna().sort_values("fecha").set_index("fecha")
                 df.columns = [mid]
                 frames.append(df)
-            except Exception:
-                pass
+            except Exception as e:
+                parse_errors.append(f"{fp.name}: {e}")
         if not frames:
-            return None
-        return _pd.concat(frames, axis=1).sort_index()
+            return None, all_files, parse_errors
+        return _pd.concat(frames, axis=1).sort_index(), all_files, parse_errors
 
-    precios_diarios = _load_daily()
+    result = _load_daily()
+    precios_diarios, _daily_files_found, _daily_errors = result if isinstance(result, tuple) else (result, [], [])
     if precios_diarios is None or precios_diarios.empty:
         st.error("No se pudieron cargar los datos diarios.")
+        with st.expander("Debug info"):
+            st.write(f"Archivos encontrados: {len(_daily_files_found)}")
+            st.write([str(f) for f in _daily_files_found[:5]])
+            st.write("Errores:", _daily_errors[:5])
         return
 
     # ── Controles ────────────────────────────────────────────────────────────
