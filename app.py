@@ -2457,28 +2457,29 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
     @st.cache_data(show_spinner="Cargando precios diarios…")
     def _load_daily():
         import pathlib as _pl
+        import pandas as pd
         base = _pl.Path(__file__).parent / "data"
         frames = []
         parse_errors = []
         all_files = list(base.glob("**/daily/*.csv"))
         for fp in all_files:
             try:
-                df = _pd.read_csv(fp, encoding="utf-8-sig", dtype=str)
+                df = pd.read_csv(fp, encoding="utf-8-sig", dtype=str)
                 df.columns = df.columns.str.strip()
-                col_u = next((c for c in df.columns if "ltimo" in c or "ltimo" in c.lower()), None)
+                col_u = next((c for c in df.columns if "ltimo" in c.lower()), None)
                 if "Fecha" not in df.columns or col_u is None:
                     parse_errors.append(f"cols: {fp.name} → {df.columns.tolist()}")
                     continue
                 mid = fp.stem.replace("Datos_diarios_", "")
                 df = df[["Fecha", col_u]].copy()
                 df.columns = ["fecha", "precio"]
-                df["fecha"] = _pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
+                df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
                 df["precio"] = (
                     df["precio"]
                     .str.replace('"', "", regex=False)
                     .str.replace(".", "", regex=False)
                     .str.replace(",", ".", regex=False)
-                    .apply(_pd.to_numeric, errors="coerce")
+                    .apply(pd.to_numeric, errors="coerce")
                 )
                 df = df.dropna().sort_values("fecha").set_index("fecha")
                 df.columns = [mid]
@@ -2487,7 +2488,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
                 parse_errors.append(f"{fp.name}: {e}")
         if not frames:
             return None, all_files, parse_errors
-        return _pd.concat(frames, axis=1).sort_index(), all_files, parse_errors
+        return pd.concat(frames, axis=1).sort_index(), all_files, parse_errors
 
     result = _load_daily()
     precios_diarios, _daily_files_found, _daily_errors = result if isinstance(result, tuple) else (result, [], [])
