@@ -73,37 +73,34 @@ FONDOS_LARRAIN_VIAL = {
 
 # ── Fondos nuevas corredoras (descargados via scripts/fetch_investing.py) ─────
 FONDOS_BCI = {
-    "0P0000KA6F": {"nombre": "BCI Selección Bursátil APV",            "perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000KA6R": {"nombre": "BCI Emergente Global APV",              "perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000KA7G": {"nombre": "BCI de Personas APV",                   "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000KA71": {"nombre": "BCI Cartera Dinámica Balanceada APV",   "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000V2S1": {"nombre": "BCI Estrategia UF Hasta 3 años",        "perfil": "conservador", "moneda": "CLP"},
+    "0P0000KA6F": {"nombre": "BCI Selección Bursátil APV",          "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KA7G": {"nombre": "BCI de Personas APV",                 "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KA7B": {"nombre": "BCI Gestión Global Dinámica 20 APV",  "perfil": "conservador", "moneda": "CLP"},
+    "0P0000KA71": {"nombre": "BCI Gestión Global Dinámica 50 APV",  "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KA78": {"nombre": "BCI Gestión Global Dinámica 80 APV",  "perfil": "agresivo",    "moneda": "CLP"},
 }
 
 FONDOS_BICE = {
-    "0P0000KA3H": {"nombre": "Bice Acciones Chile Mid Cap A",         "perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000KA3L": {"nombre": "Bice Acciones Chile Mid Cap I",         "perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000KA3T": {"nombre": "Bice Renta UF A",                       "perfil": "conservador", "moneda": "CLP"},
-    "0P0000KA3U": {"nombre": "Bice Renta UF B",                       "perfil": "conservador", "moneda": "CLP"},
-    "0P0000KA37": {"nombre": "Bice Estrategia Balanceada B",          "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000N0W0": {"nombre": "Bice Estrategia Balanceada D",          "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000RT12": {"nombre": "Bice Chile Activo B",                   "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KA40": {"nombre": "BICE Extra G",       "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000N3YH": {"nombre": "BICE Extra D",       "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000ZNUT": {"nombre": "BICE Extra Gestion G","perfil": "agresivo",   "moneda": "CLP"},
+    "0P0000N0W0": {"nombre": "BICE Target D",      "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000X2CX": {"nombre": "BICE Target G",      "perfil": "agresivo",    "moneda": "CLP"},
 }
 
 FONDOS_BANCOCHILE = {
-    "0P0000MOIN": {"nombre": "BancoEstado Acciones Desarrolladas APV","perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000Z8US": {"nombre": "BancoEstado Protección I",              "perfil": "conservador", "moneda": "CLP"},
-    "0P0000Z8UU": {"nombre": "BancoEstado Más Renta Bicentenario I",  "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000Z8UW": {"nombre": "BancoEstado Compromiso I",              "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000KASM": {"nombre": "BancoEstado Compromiso A",              "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000Z8US": {"nombre": "BancoEstado Protección I",    "perfil": "conservador", "moneda": "CLP"},
+    "0P0000Z8UW": {"nombre": "BancoEstado Compromiso I",    "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KASM": {"nombre": "BancoEstado Compromiso A",    "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000SHS5": {"nombre": "BancoEstado Perfil E PATRI",  "perfil": "agresivo",    "moneda": "CLP"},
 }
 
 FONDOS_SECURITY = {
-    "0P0000N3XH": {"nombre": "Security Global APV1",                  "perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000KBV4": {"nombre": "Security Crecimiento Estratégico B",    "perfil": "moderado",    "moneda": "CLP"},
-    "0P0000KNC5": {"nombre": "Security Index Fund US I-APV",          "perfil": "agresivo",    "moneda": "USD"},
-    "0P0000KBJZ": {"nombre": "Security Gold B",                       "perfil": "agresivo",    "moneda": "CLP"},
-    "0P0000KBKO": {"nombre": "Security Deuda Corp. Latinoam. I-APV",  "perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KBJZ": {"nombre": "Security Gold B",                   "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KBK0": {"nombre": "Security Gold I-APV",               "perfil": "agresivo",    "moneda": "CLP"},
+    "0P0000KBV4": {"nombre": "Security Crecimiento Estratégico B","perfil": "moderado",    "moneda": "CLP"},
+    "0P0000KBK3": {"nombre": "Security Equilibrio Estratégico B", "perfil": "moderado",    "moneda": "CLP"},
+    "0P000087W9": {"nombre": "Security Mid Term UF B",            "perfil": "conservador", "moneda": "CLP"},
 }
 
 # SP500 como activo — integrado desde el inicio
