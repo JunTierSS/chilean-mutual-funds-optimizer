@@ -2434,156 +2434,153 @@ def main():
 
 # ---------------------------------------------------------------------------
 def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
-    """Simula DCA: ¿qué día del mes conviene más invertir?"""
-    import pandas as _pd_local
+    """Simula DCA por portafolio: ¿qué día del mes conviene más invertir?"""
+    import pandas as pd_loc
     st.header("📅 Día Óptimo de Inversión")
     st.caption(
-        "Simula un aporte mensual fijo durante N años y calcula el capital final "
-        "según qué día del mes se invierte. Requiere datos diarios."
+        "Simula un aporte mensual fijo al portafolio optimizado durante N años "
+        "y calcula el capital final según qué día del mes se invierte."
     )
-
-    # ── Verificar datos diarios ──────────────────────────────────────────────
-    import glob as _glob
-
-    daily_files = _glob.glob("data/**/daily/*.csv", recursive=True)
-    if not daily_files:
-        st.warning(
-            "⚠️ No hay datos diarios descargados aún. "
-            "Ejecuta en tu terminal:\n\n"
-            "```bash\npython3 scripts/fetch_investing.py --interval daily --no-push\n```"
-        )
-        return
 
     # ── Cargar datos diarios ─────────────────────────────────────────────────
     @st.cache_data(show_spinner="Cargando precios diarios…")
     def _load_daily():
         import pathlib as _pl
-        import pandas as pd
+        import pandas as _pd2
         base = _pl.Path(__file__).parent / "data"
         frames = []
-        parse_errors = []
         all_files = list(base.glob("**/daily/*.csv"))
         for fp in all_files:
             try:
-                df = pd.read_csv(fp, encoding="utf-8-sig", dtype=str)
+                df = _pd2.read_csv(fp, encoding="utf-8-sig", dtype=str)
                 df.columns = df.columns.str.strip()
                 col_u = next((c for c in df.columns if "ltimo" in c.lower()), None)
                 if "Fecha" not in df.columns or col_u is None:
-                    parse_errors.append(f"cols: {fp.name} → {df.columns.tolist()}")
                     continue
                 mid = fp.stem.replace("Datos_diarios_", "")
                 df = df[["Fecha", col_u]].copy()
                 df.columns = ["fecha", "precio"]
-                df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
+                df["fecha"] = _pd2.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
                 df["precio"] = (
                     df["precio"]
                     .str.replace('"', "", regex=False)
                     .str.replace(".", "", regex=False)
                     .str.replace(",", ".", regex=False)
-                    .apply(pd.to_numeric, errors="coerce")
+                    .apply(_pd2.to_numeric, errors="coerce")
                 )
                 df = df.dropna().sort_values("fecha").set_index("fecha")
                 df.columns = [mid]
                 frames.append(df)
-            except Exception as e:
-                parse_errors.append(f"{fp.name}: {e}")
+            except Exception:
+                pass
         if not frames:
-            return None, all_files, parse_errors
-        return pd.concat(frames, axis=1).sort_index(), all_files, parse_errors
+            return None
+        return _pd2.concat(frames, axis=1).sort_index()
 
-    result = _load_daily()
-    precios_diarios, _daily_files_found, _daily_errors = result if isinstance(result, tuple) else (result, [], [])
+    precios_diarios = _load_daily()
     if precios_diarios is None or precios_diarios.empty:
-        st.error("No se pudieron cargar los datos diarios.")
-        with st.expander("Debug info"):
-            st.write(f"Archivos encontrados: {len(_daily_files_found)}")
-            st.write([str(f) for f in _daily_files_found[:5]])
-            st.write("Errores:", _daily_errors[:5])
+        st.warning("⚠️ No hay datos diarios disponibles.")
         return
 
-    # ── Controles ────────────────────────────────────────────────────────────
-    fondos_diarios = list(precios_diarios.columns)
-    nombres_diarios = {f: meta.get(f, {}).get("nombre", f) for f in fondos_diarios}
-
+    # ── Obtener portafolio optimizado ─────────────────────────────────────────
+    perfil_opts = ["conservador", "moderado", "agresivo", "optimo"]
     col1, col2, col3 = st.columns(3)
     with col1:
-        fondo_sel = st.selectbox(
-            "Fondo",
-            fondos_diarios,
-            format_func=lambda x: nombres_diarios.get(x, x),
-        )
+        perfil_sel = st.selectbox("Perfil de portafolio", perfil_opts,
+                                  index=perfil_opts.index("moderado"))
     with col2:
         aporte = st.number_input(
             "Aporte mensual (CLP)",
-            min_value=10_000,
-            max_value=50_000_000,
+            min_value=10_000, max_value=50_000_000,
             value=int(aporte_mensual) if aporte_mensual > 0 else 100_000,
-            step=10_000,
-            format="%d",
+            step=10_000, format="%d",
         )
     with col3:
-        anos = st.slider("Horizonte (años)", min_value=1, max_value=20, value=5)
+        anos = st.slider("Horizonte (años)", min_value=1, max_value=6, value=3)
 
-    st.caption(f"CLP {aporte:,.0f}/mes · {anos} años · {12*anos} aportes")
-
-    # ── Simulación ───────────────────────────────────────────────────────────
-    serie = precios_diarios[fondo_sel].dropna()
-    fecha_fin = serie.index.max()
-    fecha_ini = fecha_fin - _pd_local.DateOffset(years=anos)
-    serie = serie[serie.index >= fecha_ini]
-
-    if len(serie) < 30:
-        st.warning("Hay muy pocos datos diarios para este fondo. Descarga más histórico.")
+    res = run_optimization(retornos, meta, perfil_sel)
+    if res is None:
+        st.warning("No se pudo optimizar el portafolio. Activa más brokers.")
         return
 
-    resultados = {}
-    for dia in range(1, 29):
-        unidades = 0.0
-        for anio in range(fecha_ini.year, fecha_fin.year + 1):
-            for mes in range(1, 13):
-                # Busca el precio en el día pedido o el siguiente día hábil
-                try:
-                    fecha_objetivo = _pd_local.Timestamp(year=anio, month=mes, day=dia)
-                except ValueError:
-                    continue
-                if fecha_objetivo < fecha_ini or fecha_objetivo > fecha_fin:
-                    continue
-                # Precio más cercano (desde ese día hacia adelante dentro del mes)
-                candidatos = serie[
-                    (serie.index >= fecha_objetivo) &
-                    (serie.index <= fecha_objetivo + _pd_local.Timedelta(days=7))
-                ]
-                if candidatos.empty:
-                    continue
-                precio_compra = candidatos.iloc[0]
-                if precio_compra > 0:
-                    unidades += aporte / precio_compra
-
-        precio_actual = serie.iloc[-1]
-        resultados[dia] = unidades * precio_actual
-
-    if not resultados:
-        st.error("No se pudo simular ningún día.")
+    composicion = res["composicion"]
+    # Solo fondos con datos diarios
+    fondos_port = [f for f in composicion if f in precios_diarios.columns]
+    if not fondos_port:
+        st.warning("Ningún fondo del portafolio tiene datos diarios disponibles.")
         return
 
-    df_res = _pd_local.DataFrame.from_dict(resultados, orient="index", columns=["capital_final"])
+    total_w = sum(composicion[f] for f in fondos_port)
+    pesos = {f: composicion[f] / total_w for f in fondos_port}
+
+    st.caption(
+        f"CLP {aporte:,.0f}/mes · {anos} años · portafolio **{res['label']}** · "
+        f"{len(fondos_port)} fondos con datos diarios"
+    )
+
+    with st.expander("Composición del portafolio"):
+        for f, w in sorted(pesos.items(), key=lambda x: -x[1]):
+            nombre = meta.loc[f, "nombre"] if f in meta.index else f
+            st.write(f"{nombre}: **{w*100:.1f}%**")
+
+    # ── Simulación ────────────────────────────────────────────────────────────
+    fecha_fin = precios_diarios.index.max()
+    fecha_ini = fecha_fin - pd_loc.DateOffset(years=anos)
+    precios_periodo = precios_diarios[fondos_port][precios_diarios.index >= fecha_ini]
+
+    if len(precios_periodo) < 30:
+        st.warning("Datos insuficientes para el horizonte seleccionado.")
+        return
+
+    with st.spinner("Simulando 28 días…"):
+        resultados = {}
+        for dia in range(1, 29):
+            valor_total = 0.0
+            for fondo, peso in pesos.items():
+                aporte_fondo = aporte * peso
+                serie = precios_periodo[fondo].dropna()
+                unidades = 0.0
+                for anio in range(fecha_ini.year, fecha_fin.year + 1):
+                    for mes in range(1, 13):
+                        try:
+                            fecha_obj = pd_loc.Timestamp(year=anio, month=mes, day=dia)
+                        except ValueError:
+                            continue
+                        if fecha_obj < fecha_ini or fecha_obj > fecha_fin:
+                            continue
+                        cands = serie[
+                            (serie.index >= fecha_obj) &
+                            (serie.index <= fecha_obj + pd_loc.Timedelta(days=7))
+                        ]
+                        if cands.empty:
+                            continue
+                        precio = cands.iloc[0]
+                        if precio > 0:
+                            unidades += aporte_fondo / precio
+                precio_actual = serie.iloc[-1] if len(serie) > 0 else 0
+                valor_total += unidades * precio_actual
+            resultados[dia] = valor_total
+
+    df_res = pd_loc.DataFrame.from_dict(resultados, orient="index", columns=["capital_final"])
     df_res.index.name = "dia_mes"
     total_invertido = aporte * anos * 12
     df_res["rentabilidad_pct"] = (df_res["capital_final"] / total_invertido - 1) * 100
 
-    dia_optimo = df_res["capital_final"].idxmax()
-    dia_peor   = df_res["capital_final"].idxmin()
+    dia_optimo = int(df_res["capital_final"].idxmax())
+    dia_peor   = int(df_res["capital_final"].idxmin())
     diff_clp   = df_res["capital_final"].max() - df_res["capital_final"].min()
     diff_pct   = df_res["rentabilidad_pct"].max() - df_res["rentabilidad_pct"].min()
 
-    # ── Métricas resumen ─────────────────────────────────────────────────────
+    # ── Métricas ──────────────────────────────────────────────────────────────
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Mejor día", f"Día {dia_optimo}", f"CLP {df_res.loc[dia_optimo,'capital_final']:,.0f}")
-    c2.metric("Peor día",  f"Día {dia_peor}",  f"CLP {df_res.loc[dia_peor,'capital_final']:,.0f}")
+    c1.metric("Mejor día", f"Día {dia_optimo}",
+              f"CLP {df_res.loc[dia_optimo,'capital_final']:,.0f}")
+    c2.metric("Peor día",  f"Día {dia_peor}",
+              f"CLP {df_res.loc[dia_peor,'capital_final']:,.0f}")
     c3.metric("Diferencia capital", f"CLP {diff_clp:,.0f}")
     c4.metric("Diferencia rentab.", f"{diff_pct:.1f} pp")
 
-    # ── Gráfico barras ───────────────────────────────────────────────────────
+    # ── Gráfico ───────────────────────────────────────────────────────────────
     colors = [
         "#2ecc71" if d == dia_optimo else
         "#e74c3c" if d == dia_peor else
@@ -2601,24 +2598,21 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
     ))
     fig.add_hline(
         y=total_invertido,
-        line_dash="dash",
-        line_color="gray",
+        line_dash="dash", line_color="gray",
         annotation_text=f"Invertido: CLP {total_invertido:,.0f}",
         annotation_position="bottom right",
     )
     fig.update_layout(
-        title=f"Capital final por día de aporte — {nombres_diarios.get(fondo_sel, fondo_sel)}",
-        xaxis_title="Día del mes",
+        title=f"Capital final por día de aporte — Portafolio {res['label']}",
+        xaxis_title="Día del mes en que se invierte",
         yaxis_title="Capital final (CLP)",
         xaxis=dict(tickmode="linear", dtick=1),
-        height=500,
-        showlegend=False,
+        height=500, showlegend=False,
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # ── Tabla detalle ────────────────────────────────────────────────────────
     with st.expander("Ver tabla completa"):
         st.dataframe(
             df_res.rename(columns={
@@ -2633,7 +2627,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
 
     st.info(
         f"💡 Invertir el **día {dia_optimo}** habría generado "
-        f"**CLP {diff_clp:,.0f} más** que el peor día (día {dia_peor}) "
+        f"**CLP {diff_clp:,.0f} más** que el día {dia_peor} "
         f"en los últimos {anos} años."
     )
 
