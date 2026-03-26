@@ -2,35 +2,39 @@
 """
 scripts/fetch_investing.py
 --------------------------
-Descarga datos históricos mensuales de fondos mutuos chilenos desde Investing.com.
-Guarda en data/{broker}/Datos_historicos_{morningstar_id}.csv (mismo formato que los
-archivos existentes de Santander/LarrainVial).
+Descarga datos históricos de fondos mutuos chilenos desde Investing.com.
+Soporta frecuencia mensual y diaria para todos los brokers.
+
+Estructura de archivos:
+    data/{broker}/Datos_historicos_{id}.csv   ← mensual
+    data/{broker}/daily/Datos_diarios_{id}.csv ← diario
 
 Uso:
-    python3 scripts/fetch_investing.py              # actualiza todos los brokers
-    python3 scripts/fetch_investing.py --broker bci # solo BCI
-    python3 scripts/fetch_investing.py --dry-run    # sin escribir archivos
+    python3 scripts/fetch_investing.py                         # mensual, todos
+    python3 scripts/fetch_investing.py --interval daily        # diario, todos
+    python3 scripts/fetch_investing.py --interval both         # ambos
+    python3 scripts/fetch_investing.py --broker bci            # solo BCI
+    python3 scripts/fetch_investing.py --dry-run               # sin escribir
 
 Author: Junwei He — MSc Data Science (c), Universidad de Chile
 """
 
 import argparse
-import json
 import sys
 import time
 import random
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 import pandas as pd
 import requests
 
 # ── Configuración ─────────────────────────────────────────────────────────────
-BASE_DIR   = Path(__file__).parent.parent / "data"
-DATE_FROM  = "01/01/2020"
-SLEEP_MIN  = 1.5   # segundos entre requests (cortesía)
-SLEEP_MAX  = 3.0
-MAX_RETRY  = 3
+BASE_DIR  = Path(__file__).parent.parent / "data"
+DATE_FROM = "01/01/2020"
+SLEEP_MIN = 1.5
+SLEEP_MAX = 3.0
+MAX_RETRY = 3
 
 SESSION = requests.Session()
 SESSION.headers.update({
@@ -39,51 +43,109 @@ SESSION.headers.update({
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/122.0.0.0 Safari/537.36"
     ),
-    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept":           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language":  "es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding":  "gzip, deflate, br",
     "X-Requested-With": "XMLHttpRequest",
-    "Referer":  "https://es.investing.com/",
-    "Origin":   "https://es.investing.com",
+    "Referer":          "https://es.investing.com/",
+    "Origin":           "https://es.investing.com",
 })
 
-# ── Catálogo de nuevos fondos ─────────────────────────────────────────────────
-# Morningstar IDs extraídos de Investing.com (es.investing.com/funds/chile-funds)
-FONDOS_NUEVOS: dict[str, dict] = {
+# ── Catálogo completo de fondos (todos los brokers) ───────────────────────────
+ALL_FONDOS: dict[str, dict] = {
 
+    # ── Santander AM ──────────────────────────────────────────────────────────
+    "santander": {
+        "0P0000KBXJ": {"nombre": "Santander Renta Mediano Plazo APV",         "perfil": "conservador"},
+        "0P0000KBZ5": {"nombre": "Santander Renta Selecta Chile APV",          "perfil": "conservador"},
+        "0P0000KBZ6": {"nombre": "Santander Renta Selecta Chile GLOBA",        "perfil": "conservador"},
+        "0P0000KBZQ": {"nombre": "Santander Acciones Global Emergente APV",    "perfil": "agresivo"},
+        "0P0000KBZR": {"nombre": "Santander Acciones Global Emergente EJECU",  "perfil": "agresivo"},
+        "0P0000KBZS": {"nombre": "Santander Acciones Global Emergente INVER",  "perfil": "agresivo"},
+        "0P0000KC0A": {"nombre": "Santander GO Acciones Globales ESG APV",     "perfil": "agresivo"},
+        "0P0000KC0E": {"nombre": "Santander Renta Largo Plazo UF APV",         "perfil": "conservador"},
+        "0P0000KC1P": {"nombre": "Santander GO Acciones Asia Emergente APV",   "perfil": "agresivo"},
+        "0P0000KC1Q": {"nombre": "Santander GO Acciones Asia Emergente EJECU", "perfil": "agresivo"},
+        "0P0000KC2J": {"nombre": "Santander B APV",                            "perfil": "moderado"},
+        "0P0000KC2T": {"nombre": "Santander Bonos Nacionales APV",             "perfil": "conservador"},
+        "0P0000KC3F": {"nombre": "Santander Acciones Chilenas APV",            "perfil": "agresivo"},
+        "0P0000KC3M": {"nombre": "Santander Acciones Selectas Chile APV",      "perfil": "agresivo"},
+        "0P0000KC3N": {"nombre": "Santander Acciones Selectas Chile PATRI",    "perfil": "agresivo"},
+        "0P0000KNOT": {"nombre": "Santander Renta Extra Largo Plazo UF APV",   "perfil": "conservador"},
+        "0P0000N9A0": {"nombre": "Santander Renta Extra Largo Plazo UF INVER", "perfil": "conservador"},
+        "0P0000V0AL": {"nombre": "Santander Private Banking Agresivo APV",     "perfil": "agresivo"},
+        "0P0000V0AN": {"nombre": "Santander Private Banking Equilibrio APV",   "perfil": "moderado"},
+        "0P000102JP": {"nombre": "Santander Renta Selecta Chile PATRI",        "perfil": "conservador"},
+    },
+
+    # ── LarrainVial AM ────────────────────────────────────────────────────────
+    "larrain_vial": {
+        "0P0000K9XA": {"nombre": "LV Cuenta Activa Defensiva Dolar P",   "perfil": "conservador"},
+        "0P0000K9XC": {"nombre": "LV Cuenta Activa Defensiva Dolar A",   "perfil": "conservador"},
+        "0P0000K9XE": {"nombre": "LV Cuenta Activa Defensiva Dolar APV", "perfil": "conservador"},
+        "0P0000KCCW": {"nombre": "LV Portfolio Lider F",                 "perfil": "moderado"},
+        "0P0000KCD2": {"nombre": "LV Ahorro Corporativo APV",            "perfil": "conservador"},
+        "0P0000KCDG": {"nombre": "LV Latinoamericano APV",               "perfil": "agresivo"},
+        "0P0000KCDI": {"nombre": "LV Latinoamericano F",                 "perfil": "agresivo"},
+        "0P0000KCE0": {"nombre": "LV Bonos Latam A",                     "perfil": "moderado"},
+        "0P0000KCE1": {"nombre": "LV Bonos Latam APV",                   "perfil": "moderado"},
+        "0P0000KCE3": {"nombre": "LV Asia APV",                          "perfil": "agresivo"},
+        "0P0000KCE5": {"nombre": "LV Asia F",                            "perfil": "agresivo"},
+        "0P0000KCEF": {"nombre": "LV Enfoque A",                         "perfil": "moderado"},
+        "0P0000KCEK": {"nombre": "LV Enfoque APV",                       "perfil": "moderado"},
+        "0P0000KCHS": {"nombre": "LV Acciones Nacionales APV",           "perfil": "agresivo"},
+        "0P0000KCIT": {"nombre": "LV Ahorro Capital APV",                "perfil": "conservador"},
+        "0P0000TFHA": {"nombre": "LV Acciones Nacionales I",             "perfil": "agresivo"},
+        "0P0000TFVX": {"nombre": "LV Ahorro Estrategico I",              "perfil": "conservador"},
+        "0P0000TFW3": {"nombre": "LV Ahorro Capital I",                  "perfil": "conservador"},
+        "0P0000TG5U": {"nombre": "LV Bonos Latam F",                     "perfil": "moderado"},
+        "0P0000TG5W": {"nombre": "LV Bonos Latam P",                     "perfil": "moderado"},
+        "0P0000TG61": {"nombre": "LV Enfoque F",                         "perfil": "moderado"},
+        "0P0000TG62": {"nombre": "LV Enfoque I",                         "perfil": "moderado"},
+    },
+
+    # ── BCI ───────────────────────────────────────────────────────────────────
     "bci": {
-        "0P0000KA6F": {"nombre": "BCI Selección Bursátil APV",            "perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000KA6R": {"nombre": "BCI Emergente Global APV",              "perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000KA7G": {"nombre": "BCI de Personas APV",                   "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000KA71": {"nombre": "BCI Cartera Dinámica Balanceada APV",   "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000V2S1": {"nombre": "BCI Estrategia UF Hasta 3 años",        "perfil": "conservador", "moneda": "CLP"},
+        "0P0000KA6F": {"nombre": "BCI Selección Bursátil APV",            "perfil": "agresivo"},
+        "0P0000KA6R": {"nombre": "BCI Emergente Global APV",              "perfil": "agresivo"},
+        "0P0000KA7G": {"nombre": "BCI de Personas APV",                   "perfil": "moderado"},
+        "0P0000KA71": {"nombre": "BCI Cartera Dinámica Balanceada APV",   "perfil": "moderado"},
+        "0P0000V2S1": {"nombre": "BCI Estrategia UF Hasta 3 años",        "perfil": "conservador"},
     },
 
+    # ── Bice Inversiones ──────────────────────────────────────────────────────
     "bice": {
-        "0P0000KA3H": {"nombre": "Bice Acciones Chile Mid Cap A",         "perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000KA3L": {"nombre": "Bice Acciones Chile Mid Cap I",         "perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000KA3T": {"nombre": "Bice Renta UF A",                       "perfil": "conservador", "moneda": "CLP"},
-        "0P0000KA3U": {"nombre": "Bice Renta UF B",                       "perfil": "conservador", "moneda": "CLP"},
-        "0P0000KA37": {"nombre": "Bice Estrategia Balanceada B",          "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000N0W0": {"nombre": "Bice Estrategia Balanceada D",          "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000RT12": {"nombre": "Bice Chile Activo B",                   "perfil": "agresivo",    "moneda": "CLP"},
+        "0P0000KA3H": {"nombre": "Bice Acciones Chile Mid Cap A",         "perfil": "agresivo"},
+        "0P0000KA3L": {"nombre": "Bice Acciones Chile Mid Cap I",         "perfil": "agresivo"},
+        "0P0000KA3T": {"nombre": "Bice Renta UF A",                       "perfil": "conservador"},
+        "0P0000KA3U": {"nombre": "Bice Renta UF B",                       "perfil": "conservador"},
+        "0P0000KA37": {"nombre": "Bice Estrategia Balanceada B",          "perfil": "moderado"},
+        "0P0000N0W0": {"nombre": "Bice Estrategia Balanceada D",          "perfil": "moderado"},
+        "0P0000RT12": {"nombre": "Bice Chile Activo B",                   "perfil": "agresivo"},
     },
 
+    # ── BancoEstado ───────────────────────────────────────────────────────────
     "bancochile": {
-        "0P0000MOIN": {"nombre": "BancoEstado Acciones Desarrolladas APV","perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000Z8US": {"nombre": "BancoEstado Protección I",              "perfil": "conservador", "moneda": "CLP"},
-        "0P0000Z8UU": {"nombre": "BancoEstado Más Renta Bicentenario I",  "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000Z8UW": {"nombre": "BancoEstado Compromiso I",              "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000KASM": {"nombre": "BancoEstado Compromiso A",              "perfil": "moderado",    "moneda": "CLP"},
+        "0P0000MOIN": {"nombre": "BancoEstado Acciones Desarrolladas APV","perfil": "agresivo"},
+        "0P0000Z8US": {"nombre": "BancoEstado Protección I",              "perfil": "conservador"},
+        "0P0000Z8UU": {"nombre": "BancoEstado Más Renta Bicentenario I",  "perfil": "moderado"},
+        "0P0000Z8UW": {"nombre": "BancoEstado Compromiso I",              "perfil": "moderado"},
+        "0P0000KASM": {"nombre": "BancoEstado Compromiso A",              "perfil": "moderado"},
     },
 
+    # ── Security ──────────────────────────────────────────────────────────────
     "security": {
-        "0P0000N3XH": {"nombre": "Security Global APV1",                  "perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000KBV4": {"nombre": "Security Crecimiento Estratégico B",    "perfil": "moderado",    "moneda": "CLP"},
-        "0P0000KNC5": {"nombre": "Security Index Fund US I-APV",          "perfil": "agresivo",    "moneda": "USD"},
-        "0P0000KBJZ": {"nombre": "Security Gold B",                       "perfil": "agresivo",    "moneda": "CLP"},
-        "0P0000KBKO": {"nombre": "Security Deuda Corp. Latinoam. I-APV",  "perfil": "moderado",    "moneda": "CLP"},
+        "0P0000N3XH": {"nombre": "Security Global APV1",                  "perfil": "agresivo"},
+        "0P0000KBV4": {"nombre": "Security Crecimiento Estratégico B",    "perfil": "moderado"},
+        "0P0000KNC5": {"nombre": "Security Index Fund US I-APV",          "perfil": "agresivo"},
+        "0P0000KBJZ": {"nombre": "Security Gold B",                       "perfil": "agresivo"},
+        "0P0000KBKO": {"nombre": "Security Deuda Corp. Latinoam. I-APV",  "perfil": "moderado"},
     },
+}
+
+INTERVAL_MAP = {
+    "monthly": ("Monthly", "Datos_historicos_", ""),
+    "daily":   ("Daily",   "Datos_diarios_",    "daily"),
 }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,7 +155,6 @@ def _sleep():
 
 
 def init_session() -> bool:
-    """Visita la página principal para inicializar cookies."""
     try:
         r = SESSION.get("https://es.investing.com/", timeout=15)
         r.raise_for_status()
@@ -105,10 +166,7 @@ def init_session() -> bool:
 
 
 def get_pair_id(morningstar_id: str, fund_name: str) -> str | None:
-    """
-    Busca el pairId interno de Investing.com para un fondo.
-    Intenta primero por Morningstar ID, luego por nombre.
-    """
+    """Busca el pairId interno de Investing.com para un fondo."""
     for query in [morningstar_id, fund_name]:
         for attempt in range(MAX_RETRY):
             try:
@@ -119,8 +177,6 @@ def get_pair_id(morningstar_id: str, fund_name: str) -> str | None:
                 )
                 r.raise_for_status()
                 data = r.json()
-
-                # La respuesta tiene secciones: quotes, funds, equities, etc.
                 for section in data.values():
                     if not isinstance(section, list):
                         continue
@@ -142,13 +198,9 @@ def get_pair_id(morningstar_id: str, fund_name: str) -> str | None:
     return None
 
 
-def fetch_historical(pair_id: str) -> pd.DataFrame | None:
-    """
-    Descarga datos históricos mensuales desde Investing.com.
-    Retorna DataFrame con columnas: Fecha, Último, Apertura, Máximo, Mínimo, % var.
-    """
+def fetch_historical(pair_id: str, interval_sec: str) -> pd.DataFrame | None:
+    """Descarga datos históricos desde Investing.com para un intervalo dado."""
     end_date = datetime.today().strftime("%m/%d/%Y")
-
     for attempt in range(MAX_RETRY):
         try:
             r = SESSION.post(
@@ -157,10 +209,10 @@ def fetch_historical(pair_id: str) -> pd.DataFrame | None:
                     "curr_id":      pair_id,
                     "st_date":      DATE_FROM,
                     "end_date":     end_date,
-                    "interval_sec": "Monthly",
+                    "interval_sec": interval_sec,
                     "action":       "historical_data",
                 },
-                timeout=20,
+                timeout=25,
             )
             r.raise_for_status()
             tables = pd.read_html(r.text)
@@ -174,35 +226,30 @@ def fetch_historical(pair_id: str) -> pd.DataFrame | None:
     return None
 
 
-def already_current(path: Path) -> bool:
-    """True si el archivo fue actualizado este mes."""
+def needs_update(path: Path, interval: str) -> bool:
+    """True si el archivo necesita actualizarse."""
     if not path.exists():
-        return False
-    mtime = datetime.fromtimestamp(path.stat().st_mtime)
-    now   = datetime.today()
-    return mtime.year == now.year and mtime.month == now.month
+        return True
+    mtime   = datetime.fromtimestamp(path.stat().st_mtime)
+    now     = datetime.today()
+    if interval == "monthly":
+        return not (mtime.year == now.year and mtime.month == now.month)
+    else:  # daily
+        return mtime.date() < date.today()
 
 
-def save_csv(df: pd.DataFrame, broker: str, mid: str) -> Path:
-    """Guarda en data/{broker}/Datos_historicos_{mid}.csv."""
-    out_dir = BASE_DIR / broker
+def save_csv(df: pd.DataFrame, broker: str, mid: str, prefix: str, subdir: str) -> Path:
+    """Guarda DataFrame en data/{broker}/{subdir}/{prefix}{mid}.csv"""
+    out_dir = BASE_DIR / broker / subdir if subdir else BASE_DIR / broker
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"Datos_historicos_{mid}.csv"
+    path = out_dir / f"{prefix}{mid}.csv"
 
-    # Normalizar nombres de columnas al formato estándar del proyecto
     rename = {
-        "Price":   "Último",
-        "Precio":  "Último",
-        "Close":   "Último",
-        "Open":    "Apertura",
-        "High":    "Máximo",
-        "Low":     "Mínimo",
-        "Change %":"% var.",
-        "Var. %":  "% var.",
+        "Price":    "Último", "Precio": "Último", "Close": "Último",
+        "Open":     "Apertura", "High": "Máximo", "Low": "Mínimo",
+        "Change %": "% var.",   "Var. %": "% var.",
     }
     df = df.rename(columns=rename)
-
-    # Asegurar columna Fecha
     for c in df.columns:
         if "fecha" in c.lower() or "date" in c.lower():
             df = df.rename(columns={c: "Fecha"})
@@ -214,22 +261,25 @@ def save_csv(df: pd.DataFrame, broker: str, mid: str) -> Path:
 
 # ── Lógica principal ──────────────────────────────────────────────────────────
 
-def update_broker(broker: str, fondos: dict, dry_run: bool = False) -> dict:
+def update_broker(broker: str, fondos: dict, interval: str, dry_run: bool) -> dict:
     stats = {"ok": 0, "error": 0, "skip": 0}
-    print(f"\n{'─'*60}")
-    print(f"📦  {broker.upper()} — {len(fondos)} fondos")
-    print(f"{'─'*60}")
+    iv_sec, prefix, subdir = INTERVAL_MAP[interval]
+
+    print(f"\n{'─'*65}")
+    print(f"📦  {broker.upper()} — {len(fondos)} fondos — [{interval}]")
+    print(f"{'─'*65}")
 
     for mid, info in fondos.items():
         nombre   = info["nombre"]
-        out_path = BASE_DIR / broker / f"Datos_historicos_{mid}.csv"
+        out_dir  = BASE_DIR / broker / subdir if subdir else BASE_DIR / broker
+        out_path = out_dir / f"{prefix}{mid}.csv"
 
-        if already_current(out_path):
-            print(f"  ⏭️  {nombre[:50]:<50}  ya actualizado")
+        if not needs_update(out_path, interval):
+            print(f"  ⏭️  {nombre[:52]:<52}  ya actualizado")
             stats["skip"] += 1
             continue
 
-        print(f"  🔄  {nombre[:50]:<50}", end="  ", flush=True)
+        print(f"  🔄  {nombre[:52]:<52}", end="  ", flush=True)
 
         pair_id = get_pair_id(mid, nombre)
         if not pair_id:
@@ -238,7 +288,7 @@ def update_broker(broker: str, fondos: dict, dry_run: bool = False) -> dict:
             _sleep()
             continue
 
-        df = fetch_historical(pair_id)
+        df = fetch_historical(pair_id, iv_sec)
         if df is None or df.empty:
             print("❌  sin datos")
             stats["error"] += 1
@@ -246,15 +296,24 @@ def update_broker(broker: str, fondos: dict, dry_run: bool = False) -> dict:
             continue
 
         if dry_run:
-            print(f"✅  {len(df):>4} filas  (dry-run, no guardado)")
+            print(f"✅  {len(df):>5} filas  (dry-run)")
         else:
-            path = save_csv(df, broker, mid)
-            print(f"✅  {len(df):>4} filas  → {path.name}")
+            path = save_csv(df, broker, mid, prefix, subdir)
+            print(f"✅  {len(df):>5} filas  → {path.parent.name}/{path.name}")
 
         stats["ok"] += 1
         _sleep()
 
     return stats
+
+
+def run(brokers: dict, interval: str, dry_run: bool):
+    total = {"ok": 0, "error": 0, "skip": 0}
+    for broker, fondos in brokers.items():
+        s = update_broker(broker, fondos, interval, dry_run)
+        for k in total:
+            total[k] += s[k]
+    return total
 
 
 def main():
@@ -263,43 +322,43 @@ def main():
     )
     parser.add_argument(
         "--broker", default="all",
-        choices=["all"] + list(FONDOS_NUEVOS.keys()),
+        choices=["all"] + list(ALL_FONDOS.keys()),
         help="Broker a actualizar (default: all)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Descarga datos pero no escribe archivos",
+        "--interval", default="monthly",
+        choices=["monthly", "daily", "both"],
+        help="Frecuencia de datos (default: monthly)",
     )
+    parser.add_argument("--dry-run", action="store_true",
+                        help="No escribir archivos")
     args = parser.parse_args()
 
-    print("=" * 60)
+    brokers = ALL_FONDOS if args.broker == "all" else {args.broker: ALL_FONDOS[args.broker]}
+    intervals = ["monthly", "daily"] if args.interval == "both" else [args.interval]
+
+    print("=" * 65)
     print("🇨🇱  Actualizador de Fondos Mutuos — Investing.com")
-    print(f"    Fecha : {datetime.today().strftime('%Y-%m-%d %H:%M UTC')}")
-    print(f"    Modo  : {'dry-run' if args.dry_run else 'escritura'}")
-    print("=" * 60)
+    print(f"    Fecha     : {datetime.today().strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"    Intervalo : {args.interval}")
+    print(f"    Brokers   : {', '.join(brokers.keys())}")
+    print(f"    Modo      : {'dry-run' if args.dry_run else 'escritura'}")
+    print("=" * 65)
 
     if not init_session():
         print("⛔  No se pudo conectar a Investing.com")
         sys.exit(1)
 
-    brokers = (
-        FONDOS_NUEVOS
-        if args.broker == "all"
-        else {args.broker: FONDOS_NUEVOS[args.broker]}
-    )
+    any_error = False
+    for interval in intervals:
+        total = run(brokers, interval, args.dry_run)
+        print(f"\n{'='*65}")
+        print(f"[{interval}] ✅ {total['ok']} ok · ❌ {total['error']} errores · ⏭️  {total['skip']} sin cambios")
+        if total["error"] > 0 and total["ok"] == 0:
+            any_error = True
 
-    total = {"ok": 0, "error": 0, "skip": 0}
-    for broker, fondos in brokers.items():
-        s = update_broker(broker, fondos, dry_run=args.dry_run)
-        for k in total:
-            total[k] += s[k]
-
-    print(f"\n{'='*60}")
-    print(f"✅  Completado: {total['ok']} ok · {total['error']} errores · {total['skip']} sin cambios")
-    print(f"{'='*60}")
-
-    if total["error"] > 0 and total["ok"] == 0:
-        sys.exit(1)   # fallo total → error en CI
+    if any_error:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -313,3 +313,58 @@ def cargar_todos(base_dir="data", fecha_inicio="2020-01-01",
         retornos.index.min().date(), retornos.index.max().date()))
 
     return df_long, retornos, precios, meta
+
+
+# ── Carga de datos diarios ────────────────────────────────────────────────────
+
+def _fecha_diaria(s):
+    """'25.03.2026' o '2026-03-25' → pd.Timestamp"""
+    try:
+        s = str(s).strip()
+        if "." in s:
+            p = s.split(".")
+            return pd.to_datetime("{}-{}-{}".format(p[2], p[1], p[0]))
+        return pd.to_datetime(s)
+    except Exception:
+        return pd.NaT
+
+
+def cargar_diarios(base_dir="data", brokers=None):
+    """
+    Carga datos de frecuencia diaria desde data/{broker}/daily/Datos_diarios_{id}.csv.
+    Retorna retornos_diarios: DataFrame wide fecha × fondo_id con retornos diarios.
+    Útil para GARCH con mayor número de observaciones.
+    """
+    base_dir = Path(base_dir)
+    brokers_conocidos = ["santander", "larrain_vial", "bci", "bice", "bancochile", "security"]
+    if brokers:
+        brokers_conocidos = [b for b in brokers_conocidos if b in brokers]
+
+    dfs = []
+    for key in brokers_conocidos:
+        daily_dir = base_dir / key / "daily"
+        if not (daily_dir.exists() and any(daily_dir.glob("*.csv"))):
+            continue
+        for f in sorted(daily_dir.glob("Datos_diarios_*.csv")):
+            fondo_id = f.name.replace("Datos_diarios_", "").replace(".csv", "")
+            info     = ALL_FONDOS.get(key, {}).get(fondo_id, {})
+            try:
+                df        = pd.read_csv(str(f), encoding="utf-8-sig")
+                col_p     = _col_precio(df.columns.tolist())
+                df["fecha"]   = df["Fecha"].apply(_fecha_diaria)
+                df["retorno"] = df["% var."].apply(_num) / 100
+                df["fondo_id"]= fondo_id
+                df = df[["fecha","fondo_id","retorno"]].dropna()
+                dfs.append(df)
+            except Exception as e:
+                print("  Error diario {}: {}".format(f.name, e))
+
+    if not dfs:
+        return pd.DataFrame()
+
+    df_all = pd.concat(dfs, ignore_index=True)
+    retornos_diarios = df_all.pivot_table(index="fecha", columns="fondo_id", values="retorno")
+    print("Datos diarios: {} fondos | {} días | {} → {}".format(
+        retornos_diarios.shape[1], retornos_diarios.shape[0],
+        retornos_diarios.index.min().date(), retornos_diarios.index.max().date()))
+    return retornos_diarios
