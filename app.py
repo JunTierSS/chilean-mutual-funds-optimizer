@@ -2627,7 +2627,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):
             }).style.format({
                 "Capital final (CLP)": "{:,.0f}",
                 "Rentabilidad (%)": "{:.2f}%",
-            }).background_gradient(subset=["Capital final (CLP)"], cmap="RdYlGn"),
+            }),
             use_container_width=True,
         )
 
