@@ -2583,12 +2583,18 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
                     pass
             return None
 
-        # Consecutive month pairs from DAILY data only (evita brechas)
-        ref_idx     = precios_diarios.index
-        all_months  = sorted(set(zip(ref_idx.year, ref_idx.month)))
+        # Meses donde TODOS los fondos del portafolio tienen al menos un dato
+        fondos_list = list(pesos.keys())
+        meses_por_fondo = []
+        for fondo in fondos_list:
+            serie = precios_fondo[fondo]
+            meses_fondo = set(zip(serie.index.year, serie.index.month))
+            meses_por_fondo.append(meses_fondo)
+        meses_comunes = sorted(set.intersection(*meses_por_fondo))
+
         consec_pairs = [
             (y_c, m_c, y_n, m_n)
-            for (y_c, m_c), (y_n, m_n) in zip(all_months, all_months[1:])
+            for (y_c, m_c), (y_n, m_n) in zip(meses_comunes, meses_comunes[1:])
             if (pd_loc.Timestamp(y_n, m_n, 1) - pd_loc.Timestamp(y_c, m_c, 1)).days <= 35
         ]
 
@@ -2604,7 +2610,7 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
                     if p_c is None or p_n is None or p_c <= 0:
                         ok = False; break
                     r = p_n / p_c - 1
-                    if r > 0.30 or r < -0.30:   # sanity: >30% mensual es imposible
+                    if r > 0.30 or r < -0.30:
                         ok = False; break
                     r_port += peso * r
                 if ok:
@@ -2612,6 +2618,11 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
             r_por_dia[dia] = (float(np.mean(monthly_rets))
                               if len(monthly_rets) >= 3
                               else res["ret_anual"] / 12)
+
+    n_pares = len(consec_pairs)
+    n_con_datos = sum(1 for v in r_por_dia.values() if v != res["ret_anual"] / 12)
+    st.caption(f"ℹ️ Análisis basado en **{n_pares} pares de meses** consecutivos con datos completos · "
+               f"**{n_con_datos}/28** días con ≥3 muestras reales")
 
     r_base  = res["ret_anual"] / 12
     r_mean  = float(np.mean(list(r_por_dia.values())))
