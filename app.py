@@ -2639,10 +2639,17 @@ def tab_dia_optimo(retornos, meta, monto_ini, aporte_mensual):  # noqa: C901
     fig_bar.add_hline(y=r_mean, line_dash="dash", line_color="gray",
                       annotation_text=f"Promedio: {r_mean:.3f}%/mes",
                       annotation_position="bottom right")
+    # Zoom en eje Y para mostrar variación real (no desde cero)
+    y_pad  = max((max(r_vals) - min(r_vals)) * 0.5, 0.001)
+    y_lo   = min(r_vals) - y_pad
+    y_hi   = max(r_vals) + y_pad
+    spread = max(r_vals) - min(r_vals)
     fig_bar.update_layout(
-        title=f"Retorno mensual promedio por día de inversión — Portafolio {res['label']}",
+        title=f"Retorno mensual promedio por día — Portafolio {res['label']}  "
+              f"(dispersión: {spread:.3f}%/mes)",
         xaxis_title="Día del mes", yaxis_title="Retorno promedio (%/mes)",
         xaxis=dict(tickmode="linear", dtick=1),
+        yaxis=dict(range=[y_lo, y_hi]),
         height=350, showlegend=False,
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
     )
