@@ -181,7 +181,7 @@ def run_clustering(retornos, meta):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fmt_clp(v):
-    return f"${v:,.0f}"
+    return f"CLP {v:,.0f}"
 
 def fmt_pct(v):
     return f"{v:.2%}" if pd.notna(v) else "—"
@@ -283,6 +283,7 @@ def render_sidebar():
             step=1_000_000,
             label_visibility="collapsed",
         )
+        st.caption(f"CLP {monto:,.0f}")
 
         st.markdown("**Horizonte de proyección**")
         horizonte = st.select_slider(
@@ -303,6 +304,8 @@ def render_sidebar():
             help="Aporte adicional que se deposita cada mes",
             label_visibility="collapsed",
         )
+        if aporte > 0:
+            st.caption(f"CLP {aporte:,.0f}/mes")
 
         st.markdown("**Crecimiento anual del aporte**")
         crecimiento_pct = st.slider(
@@ -340,8 +343,8 @@ def tab_mercado(retornos, meta, brokers):
     fecha_fin = retornos.index.max().strftime("%b %Y")
 
     # Corredoras activas dinámicas
-    nombres_broker = {"santander": "Santander", "larrain_vial": "LarrainVial", "externo": "S&P 500"}
-    corredoras_str = " + ".join(nombres_broker[b] for b in brokers if b in nombres_broker)
+    nombres_broker = {"santander": "Santander AM", "larrain_vial": "LarrainVial AM", "externo": "S&P 500 (CLP)"}
+    corredoras_str = " · ".join(nombres_broker[b] for b in brokers if b in nombres_broker)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Fondos seleccionados", str(len(meta)))
@@ -2359,7 +2362,7 @@ def main():
     st.caption(
         f"{n_ch} fondos · {len(retornos)} meses · "
         f"Perfil: **{perfil_labels[perfil]}** · "
-        f"Capital: **{fmt_clp(monto)}** · "
+        f"Capital: **CLP {monto:,.0f}** · "
         f"Horizonte: **{horizonte} años**"
     )
 
