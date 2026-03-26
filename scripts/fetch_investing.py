@@ -5,16 +5,26 @@ scripts/fetch_investing.py
 Descarga datos históricos de fondos mutuos chilenos desde Investing.com.
 Soporta frecuencia mensual y diaria para todos los brokers.
 
+⚠️  IMPORTANTE: Debe ejecutarse LOCALMENTE (no en GitHub Actions).
+    Investing.com bloquea las IPs de Azure/GitHub con error 403.
+
+Flujo de trabajo recomendado:
+    1. Ejecutar este script desde tu máquina
+    2. git add data/ && git commit -m "update: datos YYYY-MM"
+    3. git push → Streamlit Cloud redeploya automáticamente
+
 Estructura de archivos:
-    data/{broker}/Datos_historicos_{id}.csv   ← mensual
+    data/{broker}/Datos_historicos_{id}.csv    ← mensual
     data/{broker}/daily/Datos_diarios_{id}.csv ← diario
 
 Uso:
-    python3 scripts/fetch_investing.py                         # mensual, todos
-    python3 scripts/fetch_investing.py --interval daily        # diario, todos
-    python3 scripts/fetch_investing.py --interval both         # ambos
-    python3 scripts/fetch_investing.py --broker bci            # solo BCI
-    python3 scripts/fetch_investing.py --dry-run               # sin escribir
+    python3 scripts/fetch_investing.py                          # mensual, todos
+    python3 scripts/fetch_investing.py --interval daily         # diario, todos
+    python3 scripts/fetch_investing.py --interval both          # ambos (recomendado)
+    python3 scripts/fetch_investing.py --broker santander       # solo Santander
+    python3 scripts/fetch_investing.py --broker bci --dry-run   # sin escribir
+
+Brokers disponibles: santander, larrain_vial, bci, bice, bancochile, security
 
 Author: Junwei He — MSc Data Science (c), Universidad de Chile
 """

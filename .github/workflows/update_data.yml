@@ -1,39 +1,16 @@
-name: 📊 Update Fund Data
+name: 🔍 CI — Validate App
 
 on:
-  schedule:
-    # Job diario: Lun–Vie 20:30 UTC = ~16:30 Chile (después del cierre de mercado)
-    - cron: '30 20 * * 1-5'
-    # Job mensual: día 2 de cada mes a las 22:00 UTC (los datos del mes anterior ya están)
-    - cron: '0 22 2 * *'
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      interval:
-        description: 'Frecuencia (monthly / daily / both)'
-        required: false
-        default: 'both'
-      broker:
-        description: 'Broker (all / santander / larrain_vial / bci / bice / bancochile / security)'
-        required: false
-        default: 'all'
-      dry_run:
-        description: 'Dry run (no guardar archivos)'
-        type: boolean
-        required: false
-        default: false
 
 jobs:
-  # ── Job diario — datos con frecuencia diaria ──────────────────────────────
-  update-daily:
-    name: 📅 Fetch daily data
+  validate:
+    name: Syntax & import check
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    # Solo corre en el cron de las 20:30 o en ejecución manual con interval daily/both
-    if: |
-      github.event_name == 'workflow_dispatch' &&
-        (github.event.inputs.interval == 'daily' || github.event.inputs.interval == 'both')
-      || (github.event_name == 'schedule' && github.event.schedule == '30 20 * * 1-5')
 
     steps:
       - uses: actions/checkout@v4
@@ -44,65 +21,25 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install requests pandas lxml html5lib --quiet
+        run: pip install pandas numpy scipy scikit-learn plotly streamlit openpyxl --quiet
 
-      - name: Fetch daily data
+      - name: Check app.py syntax
+        run: python3 -c "import ast; ast.parse(open('app.py').read()); print('✅ app.py sintaxis OK')"
+
+      - name: Check src modules import
         run: |
-          BROKER="${{ github.event.inputs.broker || 'all' }}"
-          DRY="${{ github.event.inputs.dry_run || 'false' }}"
-          FLAGS="--interval daily --broker $BROKER"
-          [ "$DRY" = "true" ] && FLAGS="$FLAGS --dry-run"
-          python3 scripts/fetch_investing.py $FLAGS
-        continue-on-error: true
+          python3 -c "
+          import sys; sys.path.insert(0, '.')
+          mods = [
+              'src.loader', 'src.metrics', 'src.optimizer', 'src.covariance',
+              'src.clustering', 'src.hrp', 'src.backtesting', 'src.bootstrap',
+              'src.rolling', 'src.stress_hipotetico', 'src.benchmarks',
+          ]
+          for m in mods:
+              __import__(m)
+              print(f'  ✅ {m}')
+          print('Todos los módulos OK')
+          "
 
-      - name: Commit daily data if changed
-        run: |
-          git diff --quiet data/ && exit 0
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/
-          N=$(git diff --cached --name-only | wc -l | tr -d ' ')
-          git commit -m "chore: daily fund data $(date +'%Y-%m-%d') (${N} archivos)"
-          git push
-
-  # ── Job mensual — datos con frecuencia mensual ────────────────────────────
-  update-monthly:
-    name: 📆 Fetch monthly data
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    # Solo corre en el cron del día 2 o en ejecución manual con interval monthly/both
-    if: |
-      github.event_name == 'workflow_dispatch' &&
-        (github.event.inputs.interval == 'monthly' || github.event.inputs.interval == 'both')
-      || (github.event_name == 'schedule' && github.event.schedule == '0 22 2 * *')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: pip install requests pandas lxml html5lib --quiet
-
-      - name: Fetch monthly data
-        run: |
-          BROKER="${{ github.event.inputs.broker || 'all' }}"
-          DRY="${{ github.event.inputs.dry_run || 'false' }}"
-          FLAGS="--interval monthly --broker $BROKER"
-          [ "$DRY" = "true" ] && FLAGS="$FLAGS --dry-run"
-          python3 scripts/fetch_investing.py $FLAGS
-        continue-on-error: true
-
-      - name: Commit monthly data if changed
-        run: |
-          git diff --quiet data/ && exit 0
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/
-          N=$(git diff --cached --name-only | wc -l | tr -d ' ')
-          git commit -m "chore: monthly fund data $(date +'%Y-%m-%d') (${N} archivos)"
-          git push
+      - name: Check scraper syntax
+        run: python3 -c "import ast; ast.parse(open('scripts/fetch_investing.py').read()); print('✅ scraper sintaxis OK')"
